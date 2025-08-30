@@ -369,4 +369,21 @@ public final class AlertManagerImpl implements AlertManager, ConfigReloadable, S
     public boolean hasAlertListeners() {
         return AlertType.NORMAL.hasListeners();
     }
+    
+    @Contract(pure = true)
+    public boolean hasBrandListeners() {
+        return AlertType.BRAND.hasListeners();
+    }
+    
+    public Set<PlatformPlayer> getEnabledAlerts() {
+        return new HashSet<>(AlertType.NORMAL.players);
+    }
+    
+    public Set<PlatformPlayer> getEnabledVerbose() {
+        return new HashSet<>(AlertType.VERBOSE.players);
+    }
+    
+    public Set<PlatformPlayer> getEnabledBrands() {
+        return new HashSet<>(AlertType.BRAND.players);
+    }
 }
