@@ -6,15 +6,16 @@ import ac.grim.grimac.api.alerts.AlertManager;
 import ac.grim.grimac.api.config.ConfigManager;
 import ac.grim.grimac.api.event.EventBus;
 import ac.grim.grimac.api.event.events.GrimReloadEvent;
+import ac.grim.grimac.api.plugin.GrimPlugin;
 import ac.grim.grimac.manager.config.ConfigManagerFileImpl;
 import ac.grim.grimac.manager.init.start.StartableInitable;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.anticheat.LogUtil;
 import ac.grim.grimac.utils.anticheat.MessageUtil;
 import ac.grim.grimac.utils.common.ConfigReloadObserver;
-import com.github.retrooper.packetevents.netty.channel.ChannelHelper;
 import lombok.Getter;
-import org.checkerframework.checker.nullness.qual.NonNull;
+import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
@@ -42,8 +43,13 @@ public class GrimExternalAPI implements GrimAbstractAPI, ConfigReloadObserver, S
     }
 
     @Override
-    public @NonNull EventBus getEventBus() {
+    public @NotNull EventBus getEventBus() {
         return api.getEventBus();
+    }
+
+    @Override
+    public @Nullable GrimUser getGrimUser(Player player) {
+        return getGrimUser(player.getUniqueId());
     }
 
     @Override
@@ -106,6 +112,11 @@ public class GrimExternalAPI implements GrimAbstractAPI, ConfigReloadObserver, S
     @Override
     public int getCurrentTick() {
         return GrimAPI.INSTANCE.getTickManager().currentTick;
+    }
+
+    @Override
+    public @NotNull GrimPlugin getGrimPlugin(@NotNull Object o) {
+        return this.api.getExtensionManager().getPlugin(o);
     }
 
     // on load, load the config & register the service
@@ -183,11 +194,8 @@ public class GrimExternalAPI implements GrimAbstractAPI, ConfigReloadObserver, S
         // Don't reload players if the plugin hasn't started yet
         if (!started) return;
         // Reload checks for all players
-        for (GrimPlayer grimPlayer : GrimAPI.INSTANCE.getPlayerDataManager().getEntries()) {
-            ChannelHelper.runInEventLoop(grimPlayer.user.getChannel(), () -> {
-                grimPlayer.updatePermissions();
-                grimPlayer.reload(configManager);
-            });
+        for (GrimPlayer player : GrimAPI.INSTANCE.getPlayerDataManager().getEntries()) {
+            player.runSafely(() -> player.reload(configManager));
         }
     }
 

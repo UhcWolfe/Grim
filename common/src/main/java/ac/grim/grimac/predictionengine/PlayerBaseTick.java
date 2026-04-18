@@ -14,9 +14,12 @@ import ac.grim.grimac.utils.nmsutil.CheckIfChunksLoaded;
 import ac.grim.grimac.utils.nmsutil.Collisions;
 import ac.grim.grimac.utils.nmsutil.FluidTypeFlowing;
 import ac.grim.grimac.utils.nmsutil.GetBoundingBox;
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.manager.server.ServerVersion;
 import com.github.retrooper.packetevents.protocol.attribute.Attributes;
 import com.github.retrooper.packetevents.protocol.player.ClientVersion;
 import com.github.retrooper.packetevents.protocol.world.BlockFace;
+import com.github.retrooper.packetevents.protocol.world.attributes.EnvironmentAttributes;
 import com.github.retrooper.packetevents.protocol.world.states.type.StateType;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateAttributes;
@@ -50,8 +53,13 @@ public final class PlayerBaseTick {
             player.trackBaseTickAddition(flyingShift);
         }
 
-        updateInWaterStateAndDoFluidPushing(player);
-        updateFluidOnEyes(player);
+        if (player.getClientVersion().isOlderThanOrEquals(ClientVersion.V_1_21_11)) {
+            updateInWaterStateAndDoFluidPushing(player);
+            updateFluidOnEyes(player);
+        } else {
+            player.wasEyeInWater = player.fluidInteraction.isEyeInFluid(FluidTag.WATER);
+            updateFluidInteraction(player);
+        }
         updateSwimming(player);
 
         // If in lava, fall distance is multiplied by 0.5
@@ -104,7 +112,7 @@ public final class PlayerBaseTick {
     // 1.16 eye in water is a tick behind
     // 1.15 eye in water is the most recent result
     private static void updateFluidOnEyes(GrimPlayer player) {
-        player.wasEyeInWater = player.isEyeInFluid(FluidTag.WATER);
+        player.wasEyeInWater = player.fluidOnEyes == FluidTag.WATER;
         player.fluidOnEyes = null;
 
         double d0 = player.lastY + player.getEyeHeight() - 0.1111111119389534D;
@@ -131,9 +139,16 @@ public final class PlayerBaseTick {
         }
     }
 
+    private static final boolean SERVER_SUPPORT_ENVIRONMENT_ATTRIBUTES = PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_21_11);
     private static void updateInWaterStateAndDoFluidPushing(GrimPlayer player) {
+        player.fluidHeight.clear();
         updateInWaterStateAndDoWaterCurrentPushing(player);
-        final double multiplier = player.dimensionType.isUltraWarm() ? 0.007 : 0.0023333333333333335;
+
+        final boolean fastLava = SERVER_SUPPORT_ENVIRONMENT_ATTRIBUTES && player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_21_11)
+                ? player.dimensionType.getAttributes().getOrDefault(EnvironmentAttributes.GAMEPLAY_FAST_LAVA)
+                : player.dimensionType.isUltraWarm();
+
+        final double multiplier = fastLava ? 0.007 : 0.0023333333333333335;
         // 1.15 and below clients use block collisions to check for being in lava
         if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_16))
             player.wasTouchingLava = updateFluidHeightAndDoFluidPushing(player, FluidTag.LAVA, multiplier);
@@ -411,7 +426,7 @@ public final class PlayerBaseTick {
         int ceilY = GrimMath.ceil(aABB.maxY);
         int floorZ = GrimMath.floor(aABB.minZ);
         int ceilZ = GrimMath.ceil(aABB.maxZ);
-        if (CheckIfChunksLoaded.isChunksUnloadedAt(player, floorX, floorY, floorZ, ceilX, ceilY, ceilZ)) {
+        if (CheckIfChunksLoaded.areChunksUnloadedAt(player, floorX, floorY, floorZ, ceilX, ceilY, ceilZ)) {
             return false;
         }
 
@@ -461,11 +476,12 @@ public final class PlayerBaseTick {
         int ceilY = GrimMath.ceil(aABB.maxY);
         int floorZ = GrimMath.floor(aABB.minZ);
         int ceilZ = GrimMath.ceil(aABB.maxZ);
-        if (CheckIfChunksLoaded.isChunksUnloadedAt(player, floorX, floorY, floorZ, ceilX, ceilY, ceilZ)) {
+        if (CheckIfChunksLoaded.areChunksUnloadedAt(player, floorX, floorY, floorZ, ceilX, ceilY, ceilZ)) {
             return false;
         }
         double d2 = 0.0;
         boolean hasTouched = false;
+        boolean pushedByFluid = player.isPushedByFluid();
         Vector3dm vec3 = new Vector3dm();
         int n7 = 0;
 
@@ -490,7 +506,7 @@ public final class PlayerBaseTick {
                     hasTouched = true;
                     d2 = Math.max(fluidHeightToWorld - aABB.minY, d2);
 
-                    if (!player.isFlying) {
+                    if (pushedByFluid) {
                         Vector3dm vec32 = FluidTypeFlowing.getFlow(player, x, y, z);
                         if (d2 < 0.4) {
                             vec32 = vec32.multiply(d2);
@@ -526,15 +542,34 @@ public final class PlayerBaseTick {
             }
         }
 
-        if (tag == FluidTag.LAVA) {
-            player.slightlyTouchingLava = hasTouched && d2 <= 0.4D;
-        }
-
-        if (tag == FluidTag.WATER) {
-            player.slightlyTouchingWater = hasTouched && d2 <= 0.4D;
-        }
-
+        player.fluidHeight.put(tag, d2);
         return hasTouched;
+    }
+
+    public static boolean updateFluidInteraction(GrimPlayer player) {
+        player.fluidInteraction.update(player, !player.isPushedByFluid());
+        boolean inWater = player.fluidInteraction.isInFluid(FluidTag.WATER);
+        boolean inLava = player.fluidInteraction.isInFluid(FluidTag.LAVA);
+
+        player.wasWasTouchingWater = player.wasTouchingWater;
+        player.wasTouchingWater = inWater;
+        player.wasTouchingLava = inLava;
+        if (player.isPushedByFluid()) {
+            if (inWater) {
+                player.fluidInteraction.applyCurrentTo(FluidTag.WATER, player, 0.014);
+            }
+
+            if (inLava) {
+                final boolean fastLava = SERVER_SUPPORT_ENVIRONMENT_ATTRIBUTES
+                        ? player.dimensionType.getAttributes().getOrDefault(EnvironmentAttributes.GAMEPLAY_FAST_LAVA)
+                        : player.dimensionType.isUltraWarm();
+
+                final double scale = fastLava ? 0.007 : 0.0023333333333333335;
+                player.fluidInteraction.applyCurrentTo(FluidTag.LAVA, player, scale);
+            }
+        }
+
+        return inWater || inLava;
     }
 
     private static boolean suffocatesAt(GrimPlayer player, int x, int z) {

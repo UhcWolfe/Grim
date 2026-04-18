@@ -1,6 +1,8 @@
 package ac.grim.grimac.manager.violationdatabase;
 
 import ac.grim.grimac.utils.anticheat.LogUtil;
+import lombok.experimental.UtilityClass;
+
 import java.nio.ByteBuffer;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -8,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.UUID;
 
+@UtilityClass
 public class DatabaseUtils {
 
     public static byte[] uuidToBytes(UUID uuid) {
@@ -25,6 +28,30 @@ public class DatabaseUtils {
         long msb = bb.getLong();
         long lsb = bb.getLong();
         return new UUID(msb, lsb);
+    }
+
+
+    /**
+     * Retrieves a UUID from a ResultSet.
+     * This handles both PostgreSQL (which returns a native {@link UUID} object)
+     * and MySQL/SQLite (which return a {@code byte[]}).
+     *
+     * @param resultSet  The ResultSet to read from.
+     * @param columnName The name of the UUID column.
+     * @return The UUID.
+     * @throws SQLException If a database access error occurs, or if the UUID column
+     *                      contains an unexpected type or invalid data.
+     */
+    public static UUID getUuid(ResultSet resultSet, String columnName) throws SQLException {
+        Object uuidObject = resultSet.getObject(columnName);
+
+        if (uuidObject instanceof byte[] uuidBytes) {
+            return bytesToUuid(uuidBytes);
+        } else if (uuidObject instanceof UUID uuid) {
+            return uuid;
+        }
+
+        throw new SQLException("Unexpected UUID type: " + (uuidObject == null ? "null" : uuidObject.getClass().getName()));
     }
 
     // --- Generic Deduplication Lookup (uses DatabaseDialect) ---

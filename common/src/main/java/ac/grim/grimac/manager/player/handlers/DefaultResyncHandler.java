@@ -2,23 +2,18 @@ package ac.grim.grimac.manager.player.handlers;
 
 import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.api.handler.ResyncHandler;
+import ac.grim.grimac.platform.api.player.BlockTranslator;
 import ac.grim.grimac.platform.api.world.PlatformChunk;
 import ac.grim.grimac.platform.api.world.PlatformWorld;
 import ac.grim.grimac.player.GrimPlayer;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.manager.server.ServerVersion;
-import com.github.retrooper.packetevents.netty.channel.ChannelHelper;
-import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.util.Vector3i;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerAcknowledgeBlockChanges;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBlockChange;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerMultiBlockChange;
-import lombok.RequiredArgsConstructor;
 
-@RequiredArgsConstructor
-public class DefaultResyncHandler implements ResyncHandler {
-
-    private final GrimPlayer player;
+public record DefaultResyncHandler(GrimPlayer player) implements ResyncHandler {
 
     private static void resyncPositions(GrimPlayer player, int minBlockX, int mY, int minBlockZ, int maxBlockX, int mxY, int maxBlockZ) {
         // Check the 4 corners of the player world for loaded chunks before calling event
@@ -60,6 +55,8 @@ public class DefaultResyncHandler implements ResyncHandler {
                     int minChunkZ = minBlockZ >> 4;
                     int maxChunkZ = maxBlockZ >> 4;
 
+                    BlockTranslator translator = player.platformPlayer.getBlockTranslator();
+
                     for (int currChunkZ = minChunkZ; currChunkZ <= maxChunkZ; ++currChunkZ) {
                         int minZ = currChunkZ == minChunkZ ? minBlockZ & 15 : 0; // coordinate in chunk
                         int maxZ = currChunkZ == maxChunkZ ? maxBlockZ & 15 : 15; // coordinate in chunk
@@ -83,14 +80,15 @@ public class DefaultResyncHandler implements ResyncHandler {
                                 for (int currZ = minZ; currZ <= maxZ; ++currZ) {
                                     for (int currX = minX; currX <= maxX; ++currX) {
                                         for (int currY = minY; currY <= maxY; ++currY) {
-                                            int blockId = chunk.getBlockID(currX, currY | (currChunkY << 4), currZ);
-                                            encodedBlocks[blockIndex++] = new WrapperPlayServerMultiBlockChange.EncodedBlock(blockId, currX, currY | (currChunkY << 4), currZ);
+                                            int rawId = chunk.getBlockID(currX, currY | (currChunkY << 4), currZ);
+                                            int networkId = translator.translate(rawId);
+                                            encodedBlocks[blockIndex++] = new WrapperPlayServerMultiBlockChange.EncodedBlock(networkId, currX, currY | (currChunkY << 4), currZ);
                                         }
                                     }
                                 }
 
                                 WrapperPlayServerMultiBlockChange packet = new WrapperPlayServerMultiBlockChange(new Vector3i(currChunkX, currChunkY, currChunkZ), true, encodedBlocks);
-                                ChannelHelper.runInEventLoop(player.user.getChannel(), () -> player.user.sendPacket(packet));
+                                player.runSafely(() -> player.user.sendPacket(packet));
                             }
                         }
                     }
@@ -117,16 +115,19 @@ public class DefaultResyncHandler implements ResyncHandler {
         GrimAPI.INSTANCE.getScheduler().getRegionScheduler().execute(GrimAPI.INSTANCE.getGrimPlugin(), world, chunkX, chunkZ, () -> {
             if (!player.platformPlayer.isOnline() || !player.getSetbackTeleportUtil().hasAcceptedSpawnTeleport)
                 return;
-            if (player.platformPlayer.getPosition().distance(new Vector3d(x, y, z)) >= 64)
+            if (player.platformPlayer.distanceSquared(x, y, z) >= 64 * 64)
                 return;
             if (!world.isChunkLoaded(chunkX, chunkZ)) return; // Don't load chunks sync
 
             final int blockId = world.getChunkAt(chunkX, chunkZ).getBlockID(x & 15, y, z & 15);
 
-            player.user.sendPacket(new WrapperPlayServerBlockChange(new Vector3i(x, y, z), blockId));
-            if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_19)) { // Via will handle this for us pre-1.19
-                player.user.sendPacket(new WrapperPlayServerAcknowledgeBlockChanges(sequence)); // Make 1.19 clients apply the changes
-            }
+            player.runSafely(() -> {
+                player.user.sendPacket(new WrapperPlayServerBlockChange(new Vector3i(x, y, z), blockId));
+                if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_19)) { // Via will handle this for us pre-1.19
+                    player.user.sendPacket(new WrapperPlayServerAcknowledgeBlockChanges(sequence)); // Make 1.19 clients apply the changes
+                }
+            });
+
         });
     }
 

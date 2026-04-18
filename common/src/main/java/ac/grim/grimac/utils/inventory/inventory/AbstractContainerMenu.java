@@ -31,10 +31,10 @@ public abstract class AbstractContainerMenu {
     @Setter(AccessLevel.PROTECTED)
     private Inventory playerInventory;
     @Getter
-    List<Slot> slots = new ArrayList<>();
+    protected final List<Slot> slots = new ArrayList<>();
     @Getter
     @NotNull
-    ItemStack carriedItem = ItemStack.EMPTY;
+    private ItemStack carriedItem = ItemStack.EMPTY;
 
     public AbstractContainerMenu(GrimPlayer player, Inventory playerInventory) {
         this.player = player;
@@ -219,7 +219,7 @@ public abstract class AbstractContainerMenu {
                 // TODO: What do we do with crafting? I think this is overkill and we shouldn't attempt to track crafting, and just resync inventory.
                 // 1.17+ clients send changed itemstacks anyways, so just hack around stuff until people stop using decade old versions.
                 if (slot instanceof ResultSlot) {
-                    player.getInventory().isPacketInventoryActive = false;
+                    player.inventory.isPacketInventoryActive = false;
                 }
 
                 // TODO: Bundle support

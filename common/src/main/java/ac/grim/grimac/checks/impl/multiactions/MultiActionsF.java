@@ -16,7 +16,7 @@ import java.util.List;
 @CheckData(name = "MultiActionsF", description = "Interacting with a block and an entity in the same tick", experimental = true)
 public class MultiActionsF extends BlockPlaceCheck {
     private final List<String> flags = new ArrayList<>();
-    boolean entity, block;
+    private boolean entity, block;
 
     public MultiActionsF(GrimPlayer player) {
         super(player);
@@ -38,7 +38,9 @@ public class MultiActionsF extends BlockPlaceCheck {
 
     @Override
     public void onPacketReceive(PacketReceiveEvent event) {
-        if (event.getPacketType() == PacketType.Play.Client.INTERACT_ENTITY) {
+        if (event.getPacketType() == PacketType.Play.Client.INTERACT_ENTITY
+                || event.getPacketType() == PacketType.Play.Client.ATTACK
+                || event.getPacketType() == PacketType.Play.Client.SPECTATE_ENTITY) {
             entity = true;
             if (block) {
                 if (!player.canSkipTicks()) {

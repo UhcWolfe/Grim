@@ -14,6 +14,7 @@ reloaded: "%prefix% &fConfig has been reloaded."
 reload-failed: "%prefix% &cFailed to reload config."
 player-not-found: "%prefix% &cOyuncu bulunamadı veya aktif değil!"
 player-not-this-server: "%prefix% &cBu oyuncu sunucuda değil!"
+sender-not-found: "%prefix% &cMuafsanız bu komutu kullanamazsınız!"
 spectate-return: "<click:run_command:/grim stopspectating><hover:show_text:\"/grim stopspectating\">\n%prefix% &fBir önceki konuma dönmek için buraya tıklayın.\n</hover></click>"
 cannot-spectate-return: "%prefix% &cBunu yalnızca bir oyuncuyu izledikten sonra yapabilirsiniz."
 cannot-run-on-self: "%prefix% &cBu komutu kendi üzerinizde kullanamazsınız!"
@@ -28,6 +29,10 @@ disconnect:
     blacklisted-forge: "<red>Your forge version is blacklisted due to inbuilt reach hacks.<newline><gold>Versions affected: 1.18.2-1.19.3<newline><newline><red>Please see https://github.com/MinecraftForge/MinecraftForge/issues/9309."
 run-as-player: "%prefix% &cBu komut yalnızca oyuncular tarafından kullanılabilir!"
 run-as-player-or-console: "%prefix% &cBu komut yalnızca oyuncular veya konsol tarafından kullanılabilir!"
+webhook-not-enabled: "Discord webhooks are not enabled!"
+webhook-test-message: "test message"
+webhook-test-succeeded: "Discord webhook test succeeded!"
+webhook-test-failed: "Discord webhook test failed!"
 
 # Geçerli placeholderlar:
 # %prefix%

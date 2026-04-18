@@ -22,7 +22,7 @@ public class PacketOrderE extends Check implements PostPredictionCheck {
     @Override
     public void onPacketReceive(PacketReceiveEvent event) {
         if (event.getPacketType() == PacketType.Play.Client.HELD_ITEM_CHANGE) {
-            if (player.packetOrderProcessor.isAttacking()
+            if (player.packetOrderProcessor.isAttackingOrStabbing()
                     || player.packetOrderProcessor.isRightClicking()
                     || player.packetOrderProcessor.isOpeningInventory()
                     || player.packetOrderProcessor.isReleasing()
@@ -32,7 +32,7 @@ public class PacketOrderE extends Check implements PostPredictionCheck {
                     || player.packetOrderProcessor.isStartingToGlide()
                     || player.packetOrderProcessor.isJumpingWithMount()
             ) {
-                String verbose = "attacking=" + player.packetOrderProcessor.isAttacking()
+                String verbose = "attacking=" + player.packetOrderProcessor.isAttackingOrStabbing()
                         + ", rightClicking=" + player.packetOrderProcessor.isRightClicking()
                         + ", openingInventory=" + player.packetOrderProcessor.isOpeningInventory()
                         + ", releasing=" + player.packetOrderProcessor.isReleasing()
@@ -42,7 +42,7 @@ public class PacketOrderE extends Check implements PostPredictionCheck {
                         + ", sprinting=" + player.packetOrderProcessor.isSprinting()
                         + ", gliding=" + player.packetOrderProcessor.isStartingToGlide()
                         + ", mountJumping=" + player.packetOrderProcessor.isJumpingWithMount();
-                if (player.canSkipTicksPreVia() && flags.add(verbose) || flagAndAlert(verbose)) {
+                if (player.canSkipTicks() && flags.add(verbose) || flagAndAlert(verbose)) {
                     if (player.packetOrderProcessor.isUsing()) {
                         setback = true;
                     }
@@ -53,7 +53,7 @@ public class PacketOrderE extends Check implements PostPredictionCheck {
 
     @Override
     public void onPredictionComplete(PredictionComplete predictionComplete) {
-        if (!player.canSkipTicksPreVia()) {
+        if (!player.canSkipTicks()) {
             if (setback) {
                 setback = false;
                 setbackIfAboveSetbackVL();

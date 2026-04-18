@@ -4,9 +4,9 @@ import com.github.retrooper.packetevents.protocol.item.ItemStack;
 import lombok.Getter;
 
 public class InventoryStorage {
-    protected ItemStack[] items;
+    private final ItemStack[] items;
     @Getter
-    int size;
+    private final int size;
 
     public InventoryStorage(int size) {
         this.items = new ItemStack[size];
@@ -26,7 +26,7 @@ public class InventoryStorage {
     }
 
     public ItemStack removeItem(int slot, int amount) {
-        return slot >= 0 && slot < items.length && !items[slot].isEmpty() && amount > 0 ? items[slot].split(amount) : ItemStack.EMPTY;
+        return slot >= 0 && slot < size && !items[slot].isEmpty() && amount > 0 ? items[slot].split(amount) : ItemStack.EMPTY;
     }
 
     public int getMaxStackSize() {

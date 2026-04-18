@@ -32,23 +32,10 @@ public class PacketOrderI extends Check implements PostPredictionCheck {
     public void onPacketReceive(PacketReceiveEvent event) {
         if (event.getPacketType() == PacketType.Play.Client.INTERACT_ENTITY) {
             if (new WrapperPlayClientInteractEntity(event).getAction() == WrapperPlayClientInteractEntity.InteractAction.ATTACK) {
-                if (player.packetOrderProcessor.isRightClicking() || player.packetOrderProcessor.isPicking() || player.packetOrderProcessor.isReleasing() || player.packetOrderProcessor.isDigging()) {
-                    String verbose = "type=attack, rightClicking=" + player.packetOrderProcessor.isRightClicking()
-                            + ", picking=" + player.packetOrderProcessor.isPicking()
-                            + ", releasing=" + player.packetOrderProcessor.isReleasing()
-                            + ", digging=" + player.packetOrderProcessor.isDigging();
-                    if (!player.canSkipTicksPreVia()) {
-                        if (flagAndAlert(verbose) && shouldModifyPackets()) {
-                            event.setCancelled(true);
-                            player.onPacketCancel();
-                        }
-                    } else {
-                        flags.add(verbose);
-                    }
-                }
+                onAttack(event);
             } else if (player.packetOrderProcessor.isReleasing() || player.packetOrderProcessor.isDigging()) {
                 String verbose = "type=interact, releasing=" + player.packetOrderProcessor.isReleasing() + ", digging=" + player.packetOrderProcessor.isDigging();
-                if (!player.canSkipTicksPreVia()) {
+                if (!player.canSkipTicks()) {
                     if (flagAndAlert(verbose) && shouldModifyPackets()) {
                         event.setCancelled(true);
                         player.onPacketCancel();
@@ -62,7 +49,7 @@ public class PacketOrderI extends Check implements PostPredictionCheck {
         if (event.getPacketType() == PacketType.Play.Client.PLAYER_BLOCK_PLACEMENT || event.getPacketType() == PacketType.Play.Client.USE_ITEM) {
             if (player.packetOrderProcessor.isReleasing() || digging) {
                 String verbose = "type=place/use, releasing=" + player.packetOrderProcessor.isReleasing() + ", digging=" + digging;
-                if (!player.canSkipTicksPreVia()) {
+                if (!player.canSkipTicks()) {
                     if (flagAndAlert(verbose) && shouldModifyPackets()) {
                         event.setCancelled(true);
                         player.onPacketCancel();
@@ -73,17 +60,24 @@ public class PacketOrderI extends Check implements PostPredictionCheck {
             }
         }
 
+        if (event.getPacketType() == PacketType.Play.Client.ATTACK || event.getPacketType() == PacketType.Play.Client.SPECTATE_ENTITY) {
+            onAttack(event);
+        }
+
         if (event.getPacketType() == PacketType.Play.Client.PLAYER_DIGGING) {
             WrapperPlayClientPlayerDigging packet = new WrapperPlayClientPlayerDigging(event);
 
             switch (packet.getAction()) {
+                case STAB:
+                    onAttack(event);
+                    break;
                 case RELEASE_USE_ITEM:
-                    if (player.packetOrderProcessor.isAttacking() || player.packetOrderProcessor.isRightClicking() || player.packetOrderProcessor.isPicking() || player.packetOrderProcessor.isDigging()) {
-                        String verbose = "type=release, attacking=" + player.packetOrderProcessor.isAttacking()
+                    if (player.packetOrderProcessor.isAttackingOrStabbing() || player.packetOrderProcessor.isRightClicking() || player.packetOrderProcessor.isPicking() || player.packetOrderProcessor.isDigging()) {
+                        String verbose = "type=release, attacking=" + player.packetOrderProcessor.isAttackingOrStabbing()
                                 + ", rightClicking=" + player.packetOrderProcessor.isRightClicking()
                                 + ", picking=" + player.packetOrderProcessor.isPicking()
                                 + ", digging=" + player.packetOrderProcessor.isDigging();
-                        if (!player.canSkipTicksPreVia()) {
+                        if (!player.canSkipTicks()) {
                             if (flagAndAlert(verbose)) {
                                 setback = true;
                             }
@@ -106,14 +100,14 @@ public class PacketOrderI extends Check implements PostPredictionCheck {
             }
         }
 
-        if (player.gamemode == GameMode.SPECTATOR || isTickPacket(event.getPacketType())) {
+        if (!player.cameraEntity.isSelf() || isTickPacket(event.getPacketType())) {
             digging = false;
         }
     }
 
     @Override
     public void onPredictionComplete(PredictionComplete predictionComplete) {
-        if (!player.canSkipTicksPreVia()) {
+        if (!player.canSkipTicks()) {
             if (setback) {
                 setbackIfAboveSetbackVL();
                 setback = false;
@@ -132,6 +126,23 @@ public class PacketOrderI extends Check implements PostPredictionCheck {
 
         flags.clear();
         setback = false;
+    }
+
+    private void onAttack(PacketReceiveEvent event) {
+        if (player.packetOrderProcessor.isRightClicking() || player.packetOrderProcessor.isPicking() || player.packetOrderProcessor.isReleasing() || player.packetOrderProcessor.isDigging()) {
+            String verbose = "type=attack" + ", rightClicking=" + player.packetOrderProcessor.isRightClicking()
+                    + ", picking=" + player.packetOrderProcessor.isPicking()
+                    + ", releasing=" + player.packetOrderProcessor.isReleasing()
+                    + ", digging=" + player.packetOrderProcessor.isDigging();
+            if (!player.canSkipTicks()) {
+                if (flagAndAlert(verbose) && shouldModifyPackets()) {
+                    event.setCancelled(true);
+                    player.onPacketCancel();
+                }
+            } else {
+                flags.add(verbose);
+            }
+        }
     }
 
     @Override

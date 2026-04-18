@@ -1,11 +1,10 @@
 plugins {
     `kotlin-dsl`
-    kotlin("plugin.serialization") version "1.9.0" // Use the same Kotlin version as your main project
+    kotlin("plugin.serialization") version "2.3.0" // Use the same Kotlin version as your main project
 }
 
 repositories {
     mavenCentral()
-    gradlePluginPortal()
 }
 
 dependencies {

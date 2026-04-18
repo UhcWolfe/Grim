@@ -8,6 +8,7 @@ import ac.grim.grimac.player.GrimPlayer;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.protocol.packettype.PacketTypeCommon;
 import com.github.retrooper.packetevents.protocol.player.ClientVersion;
+import com.github.retrooper.packetevents.protocol.player.DiggingAction;
 import lombok.Getter;
 import lombok.Setter;
 import org.jetbrains.annotations.NotNull;
@@ -60,22 +61,19 @@ public class Check extends GrimProcessor implements AbstractCheck {
     }
 
     public boolean shouldModifyPackets() {
-        return isEnabled && !player.disableGrim && !player.noModifyPacketPermission && !exemptPermission;
+        return isEnabled
+                && !player.disableGrim
+                && !player.noModifyPacketPermission
+                && !noModifyPacketPermission
+                && !exemptPermission;
     }
 
-    public void updatePermissions() {
-        if (player.platformPlayer == null || configName == null) return;
-        GrimAPI.INSTANCE.getScheduler().getEntityScheduler().run(
-                player.platformPlayer,
-                GrimAPI.INSTANCE.getGrimPlugin(),
-                () -> {
-                    final String id = configName.toLowerCase();
-                    exemptPermission = player.platformPlayer.hasPermission("grim.exempt." + id);
-                    noSetbackPermission = player.platformPlayer.hasPermission("grim.nosetback." + id);
-                    noModifyPacketPermission = player.platformPlayer.hasPermission("grim.nomodifypacket." + id);
-                },
-                () -> {}
-        );
+    public final void updatePermissions() {
+        if (configName == null || player.platformPlayer == null) return;
+        final String id = configName.toLowerCase();
+        exemptPermission = player.platformPlayer.hasPermission("grim.exempt." + id);
+        noSetbackPermission = player.platformPlayer.hasPermission("grim.nosetback." + id);
+        noModifyPacketPermission = player.platformPlayer.hasPermission("grim.nomodifypacket." + id);
     }
 
     public final boolean flagAndAlert(String verbose) {
@@ -137,14 +135,13 @@ public class Check extends GrimProcessor implements AbstractCheck {
     }
 
     @Override
-    public void reload(ConfigManager configuration) {
+    public final void reload(ConfigManager configuration) {
         decay = configuration.getDoubleElse(configName + ".decay", decay);
         setbackVL = configuration.getDoubleElse(configName + ".setbackvl", setbackVL);
         displayName = configuration.getStringElse(configName + ".displayname", checkName);
         description = configuration.getStringElse(configName + ".description", description);
 
         if (setbackVL == -1) setbackVL = Double.MAX_VALUE;
-        updatePermissions();
         onReload(configuration);
     }
 
@@ -177,6 +174,12 @@ public class Check extends GrimProcessor implements AbstractCheck {
                 packetType == PacketType.Play.Client.WINDOW_CONFIRMATION;
     }
 
+    public static boolean isAsync(PacketTypeCommon packetType) {
+        return packetType == PacketType.Play.Client.KEEP_ALIVE
+                || packetType == PacketType.Play.Client.CHUNK_BATCH_ACK
+                || packetType == PacketType.Play.Client.RESOURCE_PACK_STATUS;
+    }
+
     public boolean isUpdate(PacketTypeCommon packetType) {
         return isFlying(packetType)
                 || packetType == PacketType.Play.Client.CLIENT_TICK_END
@@ -206,4 +209,10 @@ public class Check extends GrimProcessor implements AbstractCheck {
         return isFlying(packetType);
     }
 
+    // prevent causing exploits with packet cancelling (ie noslow)
+    public boolean canCancel(DiggingAction action) {
+        return action != DiggingAction.RELEASE_USE_ITEM
+                // we check client version here because 1.8- doesn't predict dropping items, so we can cancel them. (see CompensatedInventory)
+                && (action != DiggingAction.DROP_ITEM && action != DiggingAction.DROP_ITEM_STACK || player.getClientVersion().isOlderThanOrEquals(ClientVersion.V_1_8));
+    }
 }

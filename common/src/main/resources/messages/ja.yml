@@ -11,6 +11,7 @@ client-brand-format: "%prefix% &f%player% が %brand% を使用して参加し�
 console-specify-target: "%prefix% &cコンソールでターゲットを指定する必要があります！"
 player-not-found: "%prefix% &cプレイヤーはチェックから免除されているか、オフラインです！"
 player-not-this-server: "%prefix% &cプレイヤーはこのサーバーにいません！"
+sender-not-found: "%prefix% &c免除状態の場合、このコマンドは使用できません！"
 spectate-return: "\n%prefix% &f以前の場所に戻るにはここをクリック\n"
 cannot-spectate-return: "%prefix% &c観戦しているプレイヤー以外ではこの操作はできません"
 cannot-run-on-self: "%prefix% &c自分に対してこのコマンドは使用できません！"
@@ -25,6 +26,10 @@ disconnect:
     blacklisted-forge: "<red>Your forge version is blacklisted due to inbuilt reach hacks.<newline><gold>Versions affected: 1.18.2-1.19.3<newline><newline><red>Please see https://github.com/MinecraftForge/MinecraftForge/issues/9309."
 run-as-player: "%prefix% &cこのコマンドはプレイヤーのみが使用できます！"
 run-as-player-or-console: "%prefix% &cこのコマンドはプレイヤーまたはコンソールからのみ使用できます！"
+webhook-not-enabled: "Discord webhooks are not enabled!"
+webhook-test-message: "test message"
+webhook-test-succeeded: "Discord webhook test succeeded!"
+webhook-test-failed: "Discord webhook test failed!"
 
 # 使用可能なプレースホルダー:
 # %prefix%

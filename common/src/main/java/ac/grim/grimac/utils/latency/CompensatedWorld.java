@@ -1,6 +1,7 @@
 package ac.grim.grimac.utils.latency;
 
 import ac.grim.grimac.GrimAPI;
+import ac.grim.grimac.api.PacketWorld;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.change.BlockModification;
 import ac.grim.grimac.utils.chunks.Column;
@@ -19,7 +20,6 @@ import ac.grim.grimac.utils.nmsutil.GetBoundingBox;
 import ac.grim.grimac.utils.nmsutil.Materials;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.manager.server.ServerVersion;
-import com.github.retrooper.packetevents.netty.channel.ChannelHelper;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import com.github.retrooper.packetevents.protocol.player.ClientVersion;
 import com.github.retrooper.packetevents.protocol.player.DiggingAction;
@@ -64,7 +64,7 @@ import java.util.Map;
 import java.util.Set;
 
 // Inspired by https://github.com/GeyserMC/Geyser/blob/master/connector/src/main/java/org/geysermc/connector/network/session/cache/ChunkCache.java
-public class CompensatedWorld {
+public class CompensatedWorld implements PacketWorld {
     public static final ClientVersion blockVersion = PacketEvents.getAPI().getServerManager().getVersion().toClientVersion();
     private static final WrappedBlockState airData = WrappedBlockState.getByGlobalId(blockVersion, 0);
     public final GrimPlayer player;
@@ -211,7 +211,7 @@ public class CompensatedWorld {
             // no need to support Folia on this one because Folia is 1.19+ only
             GrimAPI.INSTANCE.getScheduler().getGlobalRegionScheduler().run(GrimAPI.INSTANCE.getGrimPlugin(), () -> {
                 // And then we jump back to the netty thread to simulate that Via sent the confirmation
-                ChannelHelper.runInEventLoop(player.user.getChannel(), () -> applyBlockChanges(toApplyBlocks));
+                player.runSafely(() -> applyBlockChanges(toApplyBlocks));
             });
         }
     }
@@ -299,13 +299,13 @@ public class CompensatedWorld {
                 // Sets entire chunk to air
                 // This glitch/feature occurs due to the palette size being 0 when we first create a chunk section
                 // Meaning that all blocks in the chunk will refer to palette #0, which we are setting to air
-                chunk.set(null, 0, 0, 0, 0);
+                chunk.set(0, 0, 0, 0);
             }
 
             // The method also gets called for the previous state before replacement
             player.pointThreeEstimator.handleChangeBlock(x, y, z, chunk.get(blockVersion, x & 0xF, offsetY & 0xF, z & 0xF));
 
-            chunk.set(null, x & 0xF, offsetY & 0xF, z & 0xF, combinedID);
+            chunk.set(x & 0xF, offsetY & 0xF, z & 0xF, combinedID);
 
             // Handle stupidity such as fluids changing in idle ticks.
             player.pointThreeEstimator.handleChangeBlock(x, y, z, WrappedBlockState.getByGlobalId(blockVersion, combinedID));
@@ -461,6 +461,25 @@ public class CompensatedWorld {
         return airData;
     }
 
+    @Override
+    public int getBlockStateId(int x, int y, int z) { // Logic copied from getBlock
+        if (noNegativeBlocks && y < 0) return -1;
+
+        try {
+            Column column = getChunk(x >> 4, z >> 4);
+
+            y -= minHeight;
+            if (column == null || y < 0 || (y >> 4) >= column.chunks().length) return -2;
+
+            BaseChunk chunk = column.chunks()[y >> 4];
+            if (chunk != null) {
+                return chunk.getBlockId(x & 0xF, y & 0xF, z & 0xF);
+            }
+        } catch (Exception ignored) {
+        }
+        return -3;
+    }
+
     // Not direct power into a block
     // Trapped chests give power but there's no packet to the client to actually apply this... ignore trapped chests
     // just like mojang did!
@@ -537,7 +556,7 @@ public class CompensatedWorld {
         WrappedBlockState block = getBlock(x, y, z);
 
         if (block.getType() == StateTypes.DETECTOR_RAIL) { // Rails hard power block below itself
-            boolean isPowered = (boolean) block.getInternalData().getOrDefault(StateValue.POWERED, false);
+            boolean isPowered = block.hasProperty(StateValue.POWERED) && block.isPowered();
             return face == BlockFace.UP && isPowered ? 15 : 0;
         } else if (block.getType() == StateTypes.REDSTONE_TORCH) {
             return face != BlockFace.UP && block.isLit() ? 15 : 0;
@@ -599,6 +618,7 @@ public class CompensatedWorld {
         return chunks.get(chunkPosition);
     }
 
+    @Override
     public boolean isChunkLoaded(int chunkX, int chunkZ) {
         long chunkPosition = chunkPositionToLong(chunkX, chunkZ);
         return chunks.containsKey(chunkPosition);
